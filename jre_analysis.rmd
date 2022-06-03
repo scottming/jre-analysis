@@ -1,0 +1,314 @@
+---
+title: "JFE analysis"
+author: 
+date: June, 3 2022
+output:
+  html_document:
+    toc: yes
+  html_notebook:
+    theme: lumen
+    toc: yes
+  prettydoc::html_pretty:
+    theme: hpstr
+    highlight: github
+---
+
+```{r include=FALSE}
+# Installation of some useful packages
+if(!isTRUE(require("prettydoc"))){install.packages("prettydoc")}
+if(!isTRUE(require("rio"))){install.packages("rio")}
+library(prettydoc)
+library(rio)
+```
+
+
+# Bibliographic Collection
+
+**Data source**:   Clarivate Analytics Web of Science (http://apps.webofknowledge.com)
+
+**Data format**:   Plaintext
+
+**Query**:         SO = "Journal of Informetrics"
+
+**Timespan**:      2007-2017
+
+**Document Type**: Articles, letters, review and proceedings papers
+
+**Query data**:    May, 2018
+
+
+# Install and load bibliometrix R-package
+```{r load bibliometrix}
+# Stable version from CRAN (Comprehensive R Archive Network)
+# if you need to execute the code, remove # from the beginning of the next line
+
+# install.packages("bibliometrix")
+
+
+# Most updated version from GitHub
+# if you need to execute the code, remove # from the beginning of the next lines
+
+# install.packages("devtools")
+# devtools::install_github("massimoaria/bibliometrix")
+
+library(bibliometrix)
+```
+
+
+# Data Loading and Converting
+```{r Data loading, warning=FALSE}
+
+myfile <- ("jfe_to_bibliometrix.txt")
+
+# Converting the loaded files into a R bibliographic dataframe
+M <- convert2df(file=myfile, dbsource="wos",format="plaintext")
+```
+
+# Section 1: Descriptive Analysis
+
+Descriptive analysis provides some snapshots about the annual research development, the top "k" productive authors, papers, countries and most relevant keywords.
+
+
+## Main findings about the collection
+
+```{r Descriptive Analysis, echo=TRUE, comment=NA}
+#options(width=160)
+results <- biblioAnalysis(M)
+summary(results, k=10, pause=F, width=130)  # TODO: 过滤年份 1980 - 2019
+plot(x=results, k=10, pause=F)
+# TODO: 重点关注下为什么 average total citations per year 急剧下降
+```
+
+## Most Cited References
+
+```{r Most cited references,  comment=NA}
+CR <- citations(M, field = "article", sep = ";")
+cbind(CR$Cited[1:20])
+```
+
+
+# Section 2: The Intellectual Structure of the field - Co-citation Analysis
+
+Citation analysis is one of the main classic techniques in bibliometrics. It shows the structure of a specific field through the linkages between nodes (e.g. authors, papers, journal), while the edges can be differently interpretated depending on the network type, that are namely co-citation, direct citation, bibliographic coupling. Please see Aria, Cuccurullo (2017).
+
+Below there are three examples.
+
+First, a co-citation network that shows relations between cited-reference works (nodes).
+
+Second, a co-citation network that uses cited-journals as unit of analysis.
+
+The useful dimensions to comment the co-citation networks are: (i) centrality and peripherality of nodes, (ii) their proximity and distance, (iii) strength of ties, (iv) clusters, (iiv) bridging contributions.
+
+Third, a historiograph is built on direct citations. It draws the intellectual linkages in a historical order. Cited works of
+thousands of authors contained in a collection of published scientific articles is sufficient for recostructing the historiographic structure of the field, calling out the basic works in it.
+
+
+## Article (References) co-citation analysis
+**Plot options**:
+
+* n = 50 (the funxtion plots the main 50 cited references)
+
+* type = "fruchterman" (the network layout is generated using the Fruchterman-Reingold Algorithm)
+
+* size.cex = TRUE (the size of the vertices is proportional to their degree)
+
+* size = 20 (the max size of vertices)
+
+* remove.multiple=FALSE (multiple edges are not removed)
+
+* labelsize = 1 (defines the size of vertex labels)
+
+* edgesize = 10 (The thickness of the edges is proportional to their strength. Edgesize defines the max value of the thickness)
+
+* edges.min = 5 (plots only edges with a strength greater than or equal to 5)
+
+* all other arguments assume the default values
+
+```{r Co-citation network, comment=NA, fig.height=10, fig.width=10}
+NetMatrix <- biblioNetwork(M, analysis = "co-citation", network = "references", sep = ";")
+net=networkPlot(NetMatrix, n = 50, Title = "Co-Citation Network", type = "fruchterman", size.cex=TRUE, size=20, remove.multiple=FALSE, labelsize=1,edgesize = 10, edges.min=5)
+```
+
+Descriptive analysis of Article co-citation network characteristics
+```{r Co-citation net stat, comment=NA}
+netstat <- networkStat(NetMatrix)
+summary(netstat,k=10)
+```
+
+
+## Journal (Source) co-citation analysis
+
+```{r Co-citation source network, comment=NA, fig.height=10, fig.width=10}
+M=metaTagExtraction(M,"CR_SO",sep=";")
+NetMatrix <- biblioNetwork(M, analysis = "co-citation", network = "sources", sep = ";")
+net=networkPlot(NetMatrix, n = 50, Title = "Co-Citation Network", type = "auto", size.cex=TRUE, size=15, remove.multiple=FALSE, labelsize=1,edgesize = 10, edges.min=5)
+```
+
+Descriptive analysis of Journal co-citation network characteristics
+```{r So Co-citation net stat, comment=NA}
+netstat <- networkStat(NetMatrix)
+summary(netstat,k=10)
+```
+
+
+# Section 3: Historiograph - Direct citation linkages
+
+
+```{r Direct citation network, fig.height=10, fig.width=10}
+histResults <- histNetwork(M, sep = ";")
+
+```
+
+```{r Historiograph, comment=NA, fig.height=7,fig.width=10}
+options(width = 130)
+net <- histPlot(histResults, n=20, size = 5, labelsize = 4)
+```
+
+
+# Section 4: The conceptual structure - Co-Word Analysis
+
+Co-word networks show the conceptual structure, that uncovers links between concepts through term co-occurences.
+
+Conceptual structure is often used to understand the topics covered by scholars (so-called research front) and identify what are the most important and the most recent issues.
+
+Dividing the whole timespan in different timeslices and comparing the conceptual structures is useful to analyze the evolution of topics over time.
+
+Bibliometrix is able to analyze keywords, but also the terms in the articles' titles and abstracts. It does it using network analysis or correspondance analysis (CA) or multiple correspondance analysis (MCA). CA and MCA visualise the conceptual structure in a two-dimensional plot.
+ 
+
+## Co-word Analysis through Keyword co-occurrences
+
+**Plot options**:
+
+* normalize = "association" (the vertex similarities are normalized using association strength)
+
+* n = 50 (the function plots the main 50 cited references)
+
+* type = "fruchterman" (the network layout is generated using the Fruchterman-Reingold Algorithm)
+
+* size.cex = TRUE (the size of the vertices is proportional to their degree)
+
+* size = 20 (the max size of the vertices) 
+
+* remove.multiple=FALSE (multiple edges are not removed)
+
+* labelsize = 3 (defines the max size of vertex labels)
+
+* label.cex = TRUE (The vertex label sizes are proportional to their degree)
+
+* edgesize = 10 (The thickness of the edges is proportional to their strength. Edgesize defines the max value of the thickness)
+
+* label.n = 30 (Labels are plotted only for the main 30 vertices)
+
+* edges.min = 25 (plots only edges with a strength greater than or equal to 2)
+
+* all other arguments assume the default values
+
+```{r Keyword co-occurrences, comment=NA, fig.height=10, fig.width=10}
+NetMatrix <- biblioNetwork(M, analysis = "co-occurrences", network = "keywords", sep = ";")
+net=networkPlot(NetMatrix, normalize="association", n = 50, Title = "Keyword Co-occurrences", type = "fruchterman", size.cex=TRUE, size=20, remove.multiple=F, edgesize = 10, labelsize=5,label.cex=TRUE,label.n=30,edges.min=2)
+```
+
+Descriptive analysis of keyword co-occurrences network characteristics
+
+```{r Keyword net stat, comment=NA}
+netstat <- networkStat(NetMatrix)
+summary(netstat,k=10)
+```
+
+
+## Co-word Analysis through Correspondence Analysis
+
+```{r Co-word Analysis, fig.height=10, fig.width=10}
+suppressWarnings(
+CS <- conceptualStructure(M, method="MCA", field="ID", minDegree=15, clust=5, stemming=FALSE, labelsize=15,documents=20)
+)
+```
+
+
+
+# Section 5: Thematic Map
+
+Co-word analysis draws clusters of keywords. They are considered as themes, whose density and centrality can be used in classifying themes and mapping in a two-dimensional diagram.
+
+Thematic map is a very intuitive plot and we can analyze themes according to the quadrant in which they are placed: (1) upper-right quadrant: motor-themes; (2) lower-right quadrant: basic themes; (3) lower-left quadrant: emerging or disappearing themes; (4) upper-left quadrant: very specialized/niche themes.
+
+Please see: 
+
+Aria, M., Cuccurullo, C., D’Aniello, L., Misuraca, M., & Spano, M. (2022). **Thematic Analysis as a New Culturomic Tool: The Social Media Coverage on COVID-19 Pandemic in Italy**. *Sustainability*, 14(6), 3643, (https://doi.org/10.3390/su14063643).
+
+Aria M., Misuraca M., Spano M. (2020) **Mapping the evolution of social research and data science on 30 years of Social Indicators Research**, *Social Indicators Research*. 
+(DOI: )https://doi.org/10.1007/s11205-020-02281-3)
+
+Cobo, M. J., Lopez-Herrera, A. G., Herrera-Viedma, E., & Herrera, F. (2011). **An approach for detecting, quantifying, and visualizing the evolution of a research field: A practical application to the fuzzy sets theory field**. *Journal of Informetrics*, 5(1), 146-166.
+
+
+```{r ThematicMap, echo=TRUE, fig.height=9, fig.width=9}
+
+Map=thematicMap(M, field = "ID", n = 250, minfreq = 4,
+  stemming = FALSE, size = 0.7, n.labels=5, repel = TRUE)
+plot(Map$map)
+```
+
+
+Cluster description
+```{r}
+Clusters=Map$words[order(Map$words$Cluster,-Map$words$Occurrences),]
+library(dplyr)
+CL <- Clusters %>% group_by(.data$Cluster_Label) %>% top_n(5, .data$Occurrences)
+CL
+```
+
+
+# Section 6: The social structure - Collaboration Analysis
+
+Collaboration networks show how authors, institutions (e.g. universities or departments) and countries relate to others in a specific field of research. For example, the first figure below is a co-author network. It discovers regular study groups, hidden groups of scholars, and pivotal authors. The second figure is called "Edu collaboration network" and uncovers relevant institutions in a specific research field and their relations.
+
+## Author collaboration network
+```{r, Au collaboration network, fig.height=10, fig.width=10}
+NetMatrix <- biblioNetwork(M, analysis = "collaboration",  network = "authors", sep = ";")
+net=networkPlot(NetMatrix,  n = 50, Title = "Author collaboration",type = "auto", size=10,size.cex=T,edgesize = 3,labelsize=1)
+```
+
+Descriptive analysis of author collaboration network characteristics
+
+```{r Au coll stat, comment=NA}
+netstat <- networkStat(NetMatrix)
+summary(netstat,k=15)
+```
+
+
+## Edu collaboration network
+```{r, Edu collaboration network, fig.height=10, fig.width=10}
+NetMatrix <- biblioNetwork(M, analysis = "collaboration",  network = "universities", sep = ";")
+net=networkPlot(NetMatrix,  n = 50, Title = "Edu collaboration",type = "auto", size=4,size.cex=F,edgesize = 3,labelsize=1)
+```
+
+Descriptive analysis of edu collaboration network characteristics
+
+```{r Edu coll stat, comment=NA}
+netstat <- networkStat(NetMatrix)
+summary(netstat,k=15)
+```
+
+
+## Country collaboration network
+```{r, Co collaboration network, fig.height=10, fig.width=10}
+M <- metaTagExtraction(M, Field = "AU_CO", sep = ";")
+NetMatrix <- biblioNetwork(M, analysis = "collaboration",  network = "countries", sep = ";")
+net=networkPlot(NetMatrix,  n = dim(NetMatrix)[1], Title = "Country collaboration",type = "circle", size=10,size.cex=T,edgesize = 1,labelsize=0.6, cluster="none")
+```
+
+Descriptive analysis of country collaboration network characteristics
+
+```{r Co coll stat, comment=NA}
+netstat <- networkStat(NetMatrix)
+summary(netstat,k=15)
+```
+
+
+
+
+
+
+
